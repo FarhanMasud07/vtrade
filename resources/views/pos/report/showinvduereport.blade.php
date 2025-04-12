@@ -111,7 +111,8 @@
 
                   @endphp
 
-                  <tr>
+                  <tr onclick="redirectToDetails({{$item['id']}}, '{{$item['date']}}')" style="cursor: pointer;">
+
                     <td class="align-middle"  style="width: 200px">{{$item['customer']}}</td>
                     <td  class="align-middle"style="width: 150px">{{$item['address']}}</td>
                     <td class="align-middle">{!!CustomerSection($item['section'])!!}</td>
@@ -209,6 +210,18 @@ width: '100%',
 
   $('#order_table').DataTable({});
   $('#cash_table').DataTable({});
+
+  function redirectToDetails(id,date) {
+
+    let formattedDate = date.split(' ')[0]; // Split date and time and take only the date part
+
+    // Generate the URL with the formatted date
+    let url = '{{ route("report.customer_details", ":id") }}'.replace(':id', id);
+    url += `?date=${encodeURIComponent(formattedDate)}`;  // URL encode the date
+
+    window.location.href = url;
+    //window.location.href = '{{ route("report.product_details", ":id") }}'.replace(':id', id) + `?date=${date}`;
+  }
 </script>
 
 @endpush

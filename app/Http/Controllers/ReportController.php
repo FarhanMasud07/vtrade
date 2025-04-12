@@ -572,7 +572,7 @@ class ReportController extends Controller
 
 
 
-        $inv_due_report [] = ['customer' => $customer->name,'address' => $customer->address,'section' => $customer->section->name,'sales' => $sales, 'returns' => $returns, 'cashes' => $cashes,'prevdues' => $prevdues, 'prev_balance' =>  $prev_balance];
+        $inv_due_report [] = ['id' => $customer->id, 'customer' => $customer->name,'address' => $customer->address,'section' => $customer->section->name,'sales' => $sales, 'returns' => $returns, 'cashes' => $cashes,'prevdues' => $prevdues, 'prev_balance' =>  $prev_balance, 'date' => $request->start ];
 
     }
 
@@ -580,6 +580,13 @@ class ReportController extends Controller
     return view('pos.report.showinvduereport',compact('inv_due_report','request','sections'));
 
 
+    }
+
+    public function customerDetails($id, Request $request )
+    {
+        $date = $request->query('date');
+        
+        return view('pos.report.customer_details');
     }
 
 

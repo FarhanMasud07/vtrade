@@ -110,7 +110,7 @@ Route::group(['prefix'=> 'admin','middleware' => ['auth:admin']], function(){
     Route::get('report/pos/duereport/', 'ReportController@InvDueReport')->name('report.duereport');
     Route::post('report/pos/duereport/result', 'ReportController@InvDueReportResult')->name('report.duereportresult');
     Route::post('report/pos/duereport/pdf', 'ReportController@pdfInvDueReportResult')->name('report.pdfduereportresult');
-
+    Route::get('report/pos/duereport/result/{id}', 'ReportController@customerDetails')->name('report.customer_details');
 
 
     Route::get('report/stockreport', 'StockController@stockreport')->name('stockreport.report');
