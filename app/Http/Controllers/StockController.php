@@ -496,6 +496,8 @@ class StockController extends Controller
                 'expenses.reasons',
                 'product_sale.sales_at',
                 DB::raw('product_sale.price * product_sale.qty as Amount'), // Calculate the Amount
+                DB::raw('products.price * product_sale.qty as TotAmount'),
+                DB::raw('product_sale.qty as TotQty'),
                 DB::raw('(product_sale.price * product_sale.qty) - IFNULL(expenses.amount, 0) as netcost') // Calculate netcost
             )
             ->first();
@@ -522,7 +524,9 @@ class StockController extends Controller
                 DB::raw('COALESCE(SUM(expenses.amount), 0) as expense_amount'),  
                 DB::raw('GROUP_CONCAT(expenses.reasons) as reasons'),  
                 DB::raw('product_sale.price * product_sale.qty as Amount'),
-                DB::raw('(product_sale.price * product_sale.qty) - COALESCE(SUM(expenses.amount), 0) as netcost')
+                DB::raw('products.price * product_sale.qty as TotAmount'),
+                DB::raw('product_sale.qty as TotQty'),
+                DB::raw('((product_sale.price * product_sale.qty) - COALESCE(SUM(expenses.amount), 0) - (products.price * product_sale.qty)) as netcost')
             )
             ->groupBy(
                 'product_sale.id', 
@@ -531,23 +535,26 @@ class StockController extends Controller
                 'product_sale.qty', 
                 'product_sale.price', 
                 'product_sale.sales_at', 
-                'sales.approved_by'
+                'sales.approved_by',
+                'products.price'
             )
             ->get();
             
         $totalSales = $allProductsData->sum('Amount');
-        $totalNetProfit = $allProductsData->sum('netcost'); 
+        $totalNetProfit = $allProductsData->sum('netcost');
+        $totQty = $allProductsData->sum('TotQty');
         
         
-        $allProductsData->each(function ($product) use ($totalSales, $totalNetProfit) {
+        $allProductsData->each(function ($product) use ($totalSales, $totalNetProfit, $totQty) {
             
             $product->proportional_expense = ($product->Amount / $totalSales) * $product->expense_amount;
             
-            $product->net_profit = $product->Amount - $product->proportional_expense;
+            $product->net_profit =  ($product->Amount - $product->proportional_expense) - $product->TotAmount;
         
             $product->total_net_profit = $totalNetProfit;
+            $product->total_quantity = $totQty;
         });
-        $netcashData = $this->getNetcashData($productData);
+        $netcashData = $this->getNetcashData($productData,$totQty);
     
         $response = [
             'netcash_data' => $netcashData,
@@ -562,17 +569,21 @@ class StockController extends Controller
         return response()->json($response);
     }
     
-    private function getNetcashData($productData)
+    
+    private function getNetcashData($productData, $totQty)
     {
+
         $netcashData = [
             'netcash_month_label' => [],
             'netcash_values' => [],
+            'total_quantity' => []
         ];
         $salesMonth = date('d F Y', strtotime($productData->sales_at)); 
        
         //$netcash = round($productData->netcost); 
     
         $netcashData['netcash_month_label'][] = $salesMonth;
+        $netcashData['total_quantity'][] = $totQty;
         //$netcashData['netcash_values'][] = $netcash;
     
         return $netcashData;

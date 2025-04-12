@@ -11,14 +11,21 @@
             </div>
             <span>Product Details for:  <b>{{ $productData->product_name }}</b></span>
             <span>Net (cash/profit): <strong id="net-cash-profit">{{ round($allProductsData->first()->total_net_profit, 2) }}</strong></span>
+            
+            <span>Total Quantity: <strong id="total-quantity-id">{{ round($allProductsData->first()->total_quantity, 2) }}</strong></span>
         </div>
-        <div class="card-body">
+        <div class="card-body" style="display:flex; width:100%; gap:26px">
 
             <!-- Net Cash Chart -->
-            <div class="mt-4 mb-4">
+            <div class="mt-4 mb-4" style="width:100%;">
                 <canvas id="netcash-chart" style="width:100px !important; height:300px;"></canvas>
             </div>
+
+              <!-- Net Quantity Chart -->
+              <div class="mt-4 mb-4" style="width:100%;">
+                <canvas id="netquantity-chart" style="width:100px !important; height:300px;"></canvas>
             </div>
+        </div>
 
         <!-- <div class="card-body">
             <table class="table table-bordered">
@@ -96,7 +103,7 @@
                                         No expenses
                                     @endif
                                 </td>
-                                <td style="text-align:center;"><small>{{ round($product->Amount, 2) }} - (({{ round($product->Amount, 2) }} ÷ {{$totalSales}} )  × {{ round($product->expense_amount, 2) }})</small> = {{ round($product->net_profit, 2) }}</td>
+                                <td style="text-align:center;"><small>({{ round($product->Amount, 2) }} - ({{ round($product->Amount, 2) }} ÷ {{$totalSales}} )  × {{ round($product->expense_amount, 2) }}) - {{ round($product->TotAmount, 2) }}</small> = {{ round($product->net_profit, 2) }}</td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -124,38 +131,50 @@
 
     let apiUrl = '{{ route("report.product_details", ":id") }}'.replace(':id', productId);
 
-// Example Axios request
-axios.get(apiUrl)
-    .then(function (response) {
-        console.log('Response Data:', response.data);  // Log the entire response data
+    axios.get(apiUrl)
+        .then(function (response) {
+            console.log('Response Data:', response.data);
 
-        if (response.data.netcash_data) {
-            let netcash_data = response.data.netcash_data;
-            const netcash_labels = netcash_data.netcash_month_label;
-            const value = document.querySelector('#net-cash-profit').textContent
-            const netcash_values = value && [Number(value)];
+            if (response.data.netcash_data) {
+                let netcash_data = response.data.netcash_data;
 
-            let data = {
-                labels: netcash_labels,
-                datasets: [{
-                    label: `Net Cash/Profit`,
-                    backgroundColor: '#44bd32',
-                    borderColor: '#4cd137',
-                    data: netcash_values,
-                    borderWidth: 1,
-                }]
-            };
+                const labels = netcash_data.netcash_month_label || [];
+                const netcash_values = netcash_data.netcash_values || [];
+                const netquantity_values = netcash_data.total_quantity_values || [];
 
-            let config = {
-                type: 'bar',
-                data,
-                options: {
+                // Fallback if backend doesn't return arrays
+                const fallback_cash = Number(document.querySelector('#net-cash-profit').textContent);
+                const fallback_qty = Number(document.querySelector('#total-quantity-id').textContent);
+
+                const netCashChartData = {
+                    labels,
+                    datasets: [{
+                        label: 'Net Cash / Profit',
+                        backgroundColor: fallback_cash < 0 ? 'red' :'#44bd32',
+                        borderColor: '#4cd137',
+                        data: netcash_values.length ? netcash_values : [fallback_cash],
+                        borderWidth: 1
+                    }]
+                };
+
+                const quantityChartData = {
+                    labels,
+                    datasets: [{
+                        label: 'Total Quantity',
+                        backgroundColor: '#3498db',
+                        borderColor: '#2980b9',
+                        data: netquantity_values.length ? netquantity_values : [fallback_qty],
+                        borderWidth: 1
+                    }]
+                };
+
+                const chartOptions = {
                     responsive: true,
                     maintainAspectRatio: false,
                     tooltips: {
                         callbacks: {
                             label: function (tooltipItem) {
-                                return 'Net Cash: $' + tooltipItem.yLabel.toFixed(2);
+                                return tooltipItem.dataset.label + ': ' + tooltipItem.yLabel.toFixed(2);
                             }
                         }
                     },
@@ -163,27 +182,37 @@ axios.get(apiUrl)
                         yAxes: [{
                             ticks: {
                                 beginAtZero: true,
-                                fontSize: 10, 
+                                fontSize: 10
                             }
                         }],
                         xAxes: [{
                             ticks: {
-                                fontSize: 10, // Smaller font size for X axis labels
-                                autoSkip: true, // Auto skip labels if too many
-                            },
+                                fontSize: 10,
+                                autoSkip: true
+                            }
                         }]
                     }
-                }
-            };
+                };
 
-            new Chart(document.getElementById('netcash-chart'), config);
-        } else {
-            console.log('Netcash data is missing');
-        }
-    })
-    .catch(function (error) {
-        console.log('Error occurred:', error);
-    });
+                // Create both charts
+                new Chart(document.getElementById('netcash-chart'), {
+                    type: 'bar',
+                    data: netCashChartData,
+                    options: chartOptions
+                });
+
+                new Chart(document.getElementById('netquantity-chart'), {
+                    type: 'bar',
+                    data: quantityChartData,
+                    options: chartOptions
+                });
+            } else {
+                console.log('Netcash data is missing');
+            }
+        })
+        .catch(function (error) {
+            console.log('Error occurred:', error);
+        });
 
     const approveReject = document.querySelectorAll('.approved-reject');
     approveReject && approveReject.length && approveReject.forEach(item => (
