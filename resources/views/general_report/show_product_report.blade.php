@@ -154,7 +154,7 @@
                                             }
                                         @endphp
                                         <!-- onclick="redirectToDetails({{$item->id}}, '{{$item->date}}')"  style="cursor: pointer;" -->
-                                        <tr>
+                                        <tr onclick="redirectToDetails({{$item->id}}, '{{$item->date}}')"  style="cursor: pointer;">
                                             <td>{{$key+1}}</td>
                                             <td>{{date('d-M-Y', strtotime($item->date))}}</td>
                                             <td>{{$item->customer_name}}</td>

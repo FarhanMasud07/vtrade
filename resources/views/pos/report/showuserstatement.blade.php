@@ -66,12 +66,15 @@
 
                     <div class="row">
                         <div class="col-lg-12">
-                            <div class="row">
-                                <div class="col-lg-6">
+                            
+
+                            <div class="col-lg-12">
                                     <div class="form-group my-5">
                                         <canvas id="balanceChart"></canvas>
                                     </div>
-                                </div>
+                            </div>
+
+                            <div class="row">
                                 <div class="col-lg-6">`
                                     <div class="customer-table">
                                         <h5>Customer Details</h5>
@@ -112,7 +115,7 @@
                                     </tr>
                                     </thead>
                                     <tbody>
-                                    <!-- <tr>
+                                    <tr>
                                         <td>{{date("d-m-Y", strtotime($request->start))}}</td>
                                         <td>N/A</td>
                                         <td>Balance</td>
@@ -120,7 +123,7 @@
                                         <td></td>
                                         <td></td>
                                         <td>{{$balance}}</td>
-                                    </tr> -->
+                                    </tr>
                                     @php
                                         $c_due = $balance;
                                         $sum = 0;
@@ -238,32 +241,56 @@
     <script src="{{asset('assets/js/datatables.min.js')}}"></script>
     <script src="{{asset('assets/js/dataTables.bootstrap4.min.js')}}"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    
+    <script>
   const chartData = @json($daily_chart_data);
   const labels = chartData.map(item => item.date);
   const balances = chartData.map(item => item.balance);
 
+  // Assign color per bar based on balance
+  const backgroundColors = balances.map(balance => balance < 0 ? '#e3342f' : '#3490dc'); // red for negative, blue for positive
+
   new Chart(document.getElementById('balanceChart'), {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Daily Balance',
-        backgroundColor: '#3490dc',
-        data: balances
-      }]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        y: {
-          beginAtZero: true
+  type: 'bar',
+  data: {
+    labels: labels,
+    datasets: [{
+      label: 'Daily Balance',
+      data: balances,
+      backgroundColor: balances.map(b => b < 0 ? '#e3342f' : '#3490dc'),
+      borderColor: '#3490dc' // Legend will take this color
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: {
+        labels: {
+          color: '#000', // Text color
+          generateLabels: function(chart) {
+            // Always show blue in the legend regardless of bar colors
+            const dataset = chart.data.datasets[0];
+            return [{
+              text: dataset.label,
+              fillStyle: '#38c172',
+              strokeStyle: '#3490dc',
+              lineWidth: 1,
+              hidden: false,
+              index: 0
+            }];
+          }
         }
       }
+    },
+    scales: {
+      y: {
+        beginAtZero: true
+      }
     }
-  });
+  }
+});
+
 </script>
+
     <script>
         $("#start").flatpickr({dateFormat: 'Y-m-d'});
         $("#end").flatpickr({dateFormat: 'Y-m-d'});

@@ -10,9 +10,18 @@
                 <a href="javascript:history.back()" class="btn btn-secondary">Back</a>
             </div>
             <span>Product Details for:  <b>{{ $productData->product_name }}</b></span>
-            <span>Net (cash/profit): <strong id="net-cash-profit">{{ round($allProductsData->first()->total_net_profit, 2) }}</strong></span>
+            <span>Net (cash/profit): 
+                <strong id="net-cash-profit">
+                    {{ $allProductsData->isNotEmpty() ? round($allProductsData->first()->total_net_profit, 2) : 'N/A' }}
+                </strong>
+            </span>
             
-            <span>Total Quantity: <strong id="total-quantity-id">{{ round($allProductsData->first()->total_quantity, 2) }}</strong></span>
+            <span>Total Quantity: 
+                <strong id="total-quantity-id">
+                    {{ $allProductsData->isNotEmpty() ? round($allProductsData->first()->total_quantity, 2) : 'N/A' }}
+                </strong>
+            </span>
+
         </div>
         <div class="card-body" style="display:flex; width:100%; gap:26px">
 
