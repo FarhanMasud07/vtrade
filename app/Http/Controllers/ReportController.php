@@ -62,114 +62,195 @@ class ReportController extends Controller
 
 
 
-    public function showPosUserstatement(Request $request){
-        $this->validate($request,[
+    public function showPosUserstatement(Request $request)
+    {
+        $this->validate($request, [
             'user' => 'required|numeric',
             'start' => 'required|date',
             'end' => 'required|date',
         ]);
-
+    
         $current_user = User::findOrFail($request->user);
-        $users = User::where('user_type','pos')->get();
-
-
-        $prevdues = Prevdue::where('user_id',$request->user)->whereBetween('due_at', [$request->start." 00:00:00", $request->end." 23:59:59"])->orderBy('due_at', 'ASC')->get();
-
-        $sales = Sale::where('user_id',$request->user)->whereBetween('sales_at', [$request->start." 00:00:00", $request->end." 23:59:59"])->orderBy('sales_at', 'ASC')->get();
-
-
-        $returns = Returnproduct::where('user_id',$request->user)->whereBetween('returned_at', [$request->start." 00:00:00", $request->end." 23:59:59"])->orderBy('returned_at', 'ASC')->get();
-
-
-        $cashes = Cash::where('status',1)->where('user_id',$request->user)->whereBetween('received_at', [$request->start." 00:00:00", $request->end." 23:59:59"])->orderBy('received_at', 'ASC')->get();
-
-
+        $users = User::where('user_type', 'pos')->get();
+    
+        $start_date = Carbon::parse($request->start)->startOfDay();
+        $end_date = Carbon::parse($request->end)->endOfDay();
+    
+        $prevdues = Prevdue::where('user_id', $request->user)
+            ->whereBetween('due_at', [$start_date, $end_date])
+            ->orderBy('due_at', 'ASC')->get();
+    
+        $sales = Sale::where('user_id', $request->user)
+            ->whereBetween('sales_at', [$start_date, $end_date])
+            ->orderBy('sales_at', 'ASC')->get();
+    
+        $returns = Returnproduct::where('user_id', $request->user)
+            ->whereBetween('returned_at', [$start_date, $end_date])
+            ->orderBy('returned_at', 'ASC')->get();
+    
+        $cashes = Cash::where('status', 1)
+            ->where('user_id', $request->user)
+            ->whereBetween('received_at', [$start_date, $end_date])
+            ->orderBy('received_at', 'ASC')->get();
+    
+        // Format transactions
         $salesinfo = [];
-        foreach($sales as $sale){
-            $salesinfo[] = ['date' => Carbon::createFromFormat('Y-m-d H:i:s',$sale->sales_at)->format('d-m-Y'),
+        foreach ($sales as $sale) {
+            $salesinfo[] = [
+                'date' => Carbon::parse($sale->sales_at)->format('d-m-Y'),
                 'id' => $sale->id,
-                'particular'=>  'sales',
+                'particular' => 'sales',
                 'debit' => $sale->amount,
                 'credit' => 0,
-                'reference' => NULL,
+                'reference' => null,
                 'discount' => 0,
             ];
         }
-
+    
         $returninfo = [];
-        foreach($returns as $return){
-            $returninfo[] = ['date' => Carbon::createFromFormat('Y-m-d H:i:s',$return->returned_at)->format('d-m-Y'),
+        foreach ($returns as $return) {
+            $returninfo[] = [
+                'date' => Carbon::parse($return->returned_at)->format('d-m-Y'),
                 'id' => $return->id,
-                'particular'=>  'return',
+                'particular' => 'return',
                 'debit' => 0,
                 'credit' => $return->amount,
-                'reference' => NULL,
+                'reference' => null,
                 'discount' => 0,
             ];
         }
-
+    
         $prevdue_info = [];
-
-        foreach($prevdues as $pvd){
+        foreach ($prevdues as $pvd) {
             $prevdue_info[] = [
-                'date' => Carbon::createFromFormat('Y-m-d H:i:s',$pvd->due_at)->format('d-m-Y'),
+                'date' => Carbon::parse($pvd->due_at)->format('d-m-Y'),
                 'id' => $pvd->id,
-                'particular'=>  'prevdue',
+                'particular' => 'prevdue',
                 'debit' => $pvd->amount,
                 'credit' => 0,
                 'reference' => $pvd->reference,
                 'discount' => 0,
             ];
         }
-
+    
         $cashinfo = [];
-        foreach($cashes as $cash){
-            $cashinfo[] = ['date' => Carbon::createFromFormat('Y-m-d H:i:s',$cash->received_at)->format('d-m-Y'),
+        foreach ($cashes as $cash) {
+            $cashinfo[] = [
+                'date' => Carbon::parse($cash->received_at)->format('d-m-Y'),
                 'id' => $cash->id,
-                'particular'=>  'cash',
+                'particular' => 'cash',
                 'debit' => 0,
                 'credit' => $cash->amount,
                 'reference' => $cash->reference,
                 'discount' => $cash->discount,
             ];
         }
-
-
-
-        $merge_data =  array_merge($salesinfo,$returninfo, $cashinfo,$prevdue_info);
-
+    
+        // Merge all transactions
+        $merge_data = array_merge($salesinfo, $returninfo, $cashinfo, $prevdue_info);
+    
         $datewise_sorted_data = [];
-        foreach($merge_data as $merge){
-            $datewise_sorted_data[] = ['date' => $merge['date'],'id' => $merge['id'],'particular' => $merge['particular'], 'debit' => $merge['debit'], 'credit' => $merge['credit'],'discount' => $merge['discount'],'reference' => $merge['reference'] ];
+    
+        // Add opening balance
+        $opening_balance_date = Carbon::parse($request->start)->format('d-m-Y');
+        $datewise_sorted_data[] = [
+            'date' => $opening_balance_date,
+            'id' => null,
+            'particular' => 'Opening Balance',
+            'debit' => 0,
+            'credit' => 0,
+            'discount' => 0,
+            'reference' => null,
+            'balance' => 0,
+        ];
+    
+        foreach ($merge_data as $merge) {
+            $datewise_sorted_data[] = array_merge($merge, ['balance' => 0]);
         }
-        usort($datewise_sorted_data,  array($this, "date_sort"));
-
-
-        $previous_sales = Sale::where('user_id',$request->user)
-            ->where('sales_at', '<', $request->start." 00:00:00")
-            ->sum('amount');
-
-        $previous_returns = Returnproduct::where('user_id',$request->user)
-            ->where('returned_at', '<', $request->start." 00:00:00")
-            ->sum('amount');
-
-        $previous_cashes = Cash::where('status',1)
-            ->where('user_id',$request->user)
-            ->where('received_at', '<', $request->start." 00:00:00")
-            ->sum('amount');
-
-        $previous_prevdue = Prevdue::where('user_id',$request->user)
-            ->where('due_at', '<', $request->start." 00:00:00")
-            ->sum('amount');
-
-        $balance = ($previous_sales+$previous_prevdue) - ($previous_returns + $previous_cashes);
-
-
-        return view('pos.report.showuserstatement',compact('datewise_sorted_data','request','users','balance','current_user'));
-
+    
+        usort($datewise_sorted_data, array($this, "date_sort"));
+    
+        // Calculate previous balance
+        $previous_sales = Sale::where('user_id', $request->user)
+            ->where('sales_at', '<', $start_date)->sum('amount');
+    
+        $previous_returns = Returnproduct::where('user_id', $request->user)
+            ->where('returned_at', '<', $start_date)->sum('amount');
+    
+        $previous_cashes = Cash::where('status', 1)
+            ->where('user_id', $request->user)
+            ->where('received_at', '<', $start_date)->sum('amount');
+    
+        $previous_prevdue = Prevdue::where('user_id', $request->user)
+            ->where('due_at', '<', $start_date)->sum('amount');
+    
+        $balance = ($previous_sales + $previous_prevdue) - ($previous_returns + $previous_cashes);
+        $currentBalance = $balance;
+    
+        $daily_chart_data = [];
+        $dailyMap = [];
+    
+        foreach ($datewise_sorted_data as $key => $entry) {
+            if ($entry['particular'] !== 'Opening Balance') {
+                $currentBalance += $entry['debit'];
+                $currentBalance -= $entry['credit'];
+            }
+    
+            $datewise_sorted_data[$key]['balance'] = $currentBalance;
+    
+            // Collect for chart
+            $formatted_date = Carbon::createFromFormat('d-m-Y', $entry['date'])->format('Y-m-d');
+            $dailyMap[$formatted_date] = $currentBalance;
+        }
+    
+        // Fill missing dates in chart
+        $chart_cursor = Carbon::parse($request->start);
+        while ($chart_cursor->lte(Carbon::parse($request->end))) {
+            $key = $chart_cursor->format('Y-m-d');
+            $daily_chart_data[] = [
+                'date' => $key,
+                'balance' => $dailyMap[$key] ?? $balance
+            ];
+            $chart_cursor->addDay();
+        }
+    
+        return view('pos.report.showuserstatement', compact(
+            'datewise_sorted_data',
+            'request',
+            'users',
+            'balance',
+            'current_user',
+            'daily_chart_data' // ← for bar graph
+        ));
     }
+    
 
 
+    public function customerDetails($id, Request $request)
+    {
+        // Extract parameters from the request
+        $date = $request->get('date');
+        $id = $request->get('id');
+        $particular = $request->get('particular');
+        $debit = $request->get('debit');
+        $credit = $request->get('credit');
+        $discount = $request->get('discount');
+        $balance = $request->get('balance');
+        $userName = $request->get('userName');
+    
+        // Pass them to the view
+        return view('pos.report.customer_details', [
+            'date' => $date,
+            'id' => $id,
+            'particular' => $particular,
+            'debit' => $debit,
+            'credit' => $credit,
+            'discount' => $discount,
+            'balance' => $balance,
+            'userName' => $userName,
+        ]);
+    }
+    
 
 
     public function pdfPosUserstatement(Request $request){
@@ -580,13 +661,6 @@ class ReportController extends Controller
     return view('pos.report.showinvduereport',compact('inv_due_report','request','sections'));
 
 
-    }
-
-    public function customerDetails($id, Request $request )
-    {
-        $date = $request->query('date');
-        
-        return view('pos.report.customer_details');
     }
 
 

@@ -112,6 +112,12 @@
                                 <canvas id="return-chart"></canvas>
                             </div>
                         </div>
+                        
+                        <div class="col-lg-6">
+                            <div class="form-group my-5">
+                                <canvas id="net-profit-chart"></canvas>
+                            </div>
+                        </div>
                         <div class="col-lg-12">
                             <div class="table-responsive">
                                 <table class="table  table-bordered text-center" id="jq_datatables">
@@ -147,8 +153,8 @@
                                                 $totalReturnQty = $totalReturnQty+$qty;
                                             }
                                         @endphp
-
-                                        <tr  onclick="redirectToDetails({{$item->id}}, '{{$item->date}}')"  style="cursor: pointer;">
+                                        <!-- onclick="redirectToDetails({{$item->id}}, '{{$item->date}}')"  style="cursor: pointer;" -->
+                                        <tr>
                                             <td>{{$key+1}}</td>
                                             <td>{{date('d-M-Y', strtotime($item->date))}}</td>
                                             <td>{{$item->customer_name}}</td>
@@ -228,106 +234,184 @@
     <script src="{{asset('assets/js/flatpicker.min.js')}}"></script>
     <script src="{{asset('assets/js/datatables.min.js')}}"></script>
     <script src="{{asset('assets/js/dataTables.bootstrap4.min.js')}}"></script>
+    <!-- <script>
+    //      $(document).ready(function() {
+    //     // Reinitialize your date picker input field after everything is loaded
+    //     $('#start').datepicker();  // Use your actual date input ID or class
+    // });
+        // Get the data passed from the controller
+        const salesData = @json($salesChartData);
+        const returnData = @json($returnChartData);
+        const netProfitData = @json($netProfitChartData);
+
+        // Extract dates
+        const labels = salesData.map(item => item.date);
+
+        // Prepare data for each dataset
+        const salesQtyData = salesData.map(item => item.qty);
+        const returnQtyData = returnData.map(item => item.qty);
+        const netProfitQtyData = netProfitData.map(item => item.net_profit);
+
+        // Chart.js setup
+        new Chart(document.getElementById('myChart'), {
+            type: 'bar',
+            data: {
+                labels: labels,  // X-axis labels (dates)
+                datasets: [
+                    {
+                        label: 'Sales',
+                        data: salesQtyData,
+                        backgroundColor: 'rgba(0, 123, 255, 0.5)',
+                    },
+                    {
+                        label: 'Returns',
+                        data: returnQtyData,
+                        backgroundColor: 'rgba(220, 53, 69, 0.5)',
+                    },
+                    {
+                        label: 'Net Profit',
+                        data: netProfitQtyData,
+                        backgroundColor: 'rgba(40, 167, 69, 0.5)',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    tooltip: {
+                        enabled: true
+                    }
+                }
+            }
+        });
+
+        
+
+        function redirectToDetails(id,date) {
+
+        let formattedDate = date.split(' ')[0]; // Split date and time and take only the date part
+
+        // Generate the URL with the formatted date
+        let url = '{{ route("report.product_details", ":id") }}'.replace(':id', id);
+        url += `?date=${encodeURIComponent(formattedDate)}`;  // URL encode the date
+
+        window.location.href = url;
+        //window.location.href = '{{ route("report.product_details", ":id") }}'.replace(':id', id) + `?date=${date}`;
+        }
+    </script> -->
+
+
     <script>
-        var baseurl = '{{url('/')}}';
-        var start = '{{$request->start}}';
-        var end = '{{$request->end}}';
-        var group_by = '{{$request->group_by}}';
-        var product_id = '{{$request->product_id}}';
-        var sale_chart = [];
-        var return_chart = [];
+    var baseurl = '{{ url('/') }}';
+    var start = '{{ $request->start }}';
+    var end = '{{ $request->end }}';
+    var group_by = '{{ $request->group_by }}';
+    var product_id = '{{ $request->product_id }}';
 
-        axios.post(baseurl + '/admin/report/date_wise_product/generate_chart', {
-            start,
-            end,
-            group_by,
-            product_id,
-        })
-            .then(function (response) {
-            console.log(response);
-            // For sales Chart
+    axios.post(baseurl + '/admin/report/date_wise_product/generate_chart', {
+        start,
+        end,
+        group_by,
+        product_id,
+    })
+    .then(function (response) {
+        console.log(response);
 
-            let salesChartData = {
+        // ========== 1. Sales Chart ==========
+        new Chart(document.getElementById('sales-chart'), {
+            type: 'bar',
+            data: {
                 datasets: [{
                     label: 'Sales Chart',
                     backgroundColor: '#2ecc71',
                     borderColor: '#27ae60',
                     data: response.data.sale_chart
                 }]
-            }
-
-            let salesChartOptions = {
+            },
+            options: {
                 parsing: {
                     xAxisKey: 'date_range_string',
                     yAxisKey: 'qty'
+                },
+                responsive: true,
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: { enabled: true }
                 }
             }
-            salesChartConfig = {
-                type: 'line',
-                data: salesChartData,
-                options: salesChartOptions
-            };
-            new Chart(
-                document.getElementById('sales-chart'),
-                salesChartConfig
-            );
-
-
-                // For Return Chart
-
-                let returnChartData = {
-                    datasets: [{
-                        label: 'Sales Return Chart',
-                        backgroundColor: '#000000',
-                        borderColor: '#000000',
-                        data: response.data.return_chart
-                    }]
-                }
-
-                let returnChartOptions = {
-                    parsing: {
-                        xAxisKey: 'date_range_string',
-                        yAxisKey: 'qty'
-                    }
-                }
-                returnChartConfig = {
-                    type: 'line',
-                    data: returnChartData,
-                    options: returnChartOptions
-                };
-                new Chart(
-                    document.getElementById('return-chart'),
-                    returnChartConfig
-                );
-
-        })
-        .catch(function (error) {
-            // handle error
-            console.log(error);
-        })
-
-
-        $('#jq_datatables').DataTable();
-        $("#start").flatpickr({dateFormat: 'Y-m-d'});
-        $("#end").flatpickr({dateFormat: 'Y-m-d'});
-        $('#products').select2({
-            width: '100%',
-            theme: "bootstrap"
         });
 
-        function redirectToDetails(id,date) {
+        // ========== 2. Return Chart ==========
+        new Chart(document.getElementById('return-chart'), {
+            type: 'bar',
+            data: {
+                datasets: [{
+                    label: 'Sales Return Chart',
+                    backgroundColor: '#e74c3c',
+                    borderColor: '#c0392b',
+                    data: response.data.return_chart
+                }]
+            },
+            options: {
+                parsing: {
+                    xAxisKey: 'date_range_string',
+                    yAxisKey: 'qty'
+                },
+                responsive: true,
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: { enabled: true }
+                }
+            }
+        });
 
-            let formattedDate = date.split(' ')[0]; // Split date and time and take only the date part
+        // ========== 3. Net Profit Chart ==========
+        new Chart(document.getElementById('net-profit-chart'), {
+            type: 'bar',
+            data: {
+                datasets: [{
+                    label: 'Net Profit Chart',
+                    backgroundColor: '#3498db',
+                    borderColor: '#2980b9',
+                    data: response.data.net_profit_chart
+                }]
+            },
+            options: {
+                parsing: {
+                    xAxisKey: 'date_range_string',
+                    yAxisKey: 'net_profit'
+                },
+                responsive: true,
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: { enabled: true }
+                }
+            }
+        });
 
-// Generate the URL with the formatted date
-let url = '{{ route("report.product_details", ":id") }}'.replace(':id', id);
-url += `?date=${encodeURIComponent(formattedDate)}`;  // URL encode the date
+    })
+    .catch(function (error) {
+        console.error(error);
+    });
 
-window.location.href = url;
-            //window.location.href = '{{ route("report.product_details", ":id") }}'.replace(':id', id) + `?date=${date}`;
-        }
+    // Init flatpickr, datatable, select2
+    $('#jq_datatables').DataTable();
+    $("#start").flatpickr({ dateFormat: 'Y-m-d' });
+    $("#end").flatpickr({ dateFormat: 'Y-m-d' });
+    $('#products').select2({ width: '100%', theme: "bootstrap" });
 
-    </script>
+    // Redirect to detail view
+    function redirectToDetails(id, date) {
+        let formattedDate = date.split(' ')[0];
+        let url = '{{ route("report.product_details", ":id") }}'.replace(':id', id);
+        url += `?date=${encodeURIComponent(formattedDate)}`;
+        window.location.href = url;
+    }
+</script>
+
 
 @endpush
 

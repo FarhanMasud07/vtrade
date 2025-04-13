@@ -67,6 +67,11 @@
                     <div class="row">
                         <div class="col-lg-12">
                             <div class="row">
+                                <div class="col-lg-6">
+                                    <div class="form-group my-5">
+                                        <canvas id="balanceChart"></canvas>
+                                    </div>
+                                </div>
                                 <div class="col-lg-6">`
                                     <div class="customer-table">
                                         <h5>Customer Details</h5>
@@ -107,7 +112,7 @@
                                     </tr>
                                     </thead>
                                     <tbody>
-                                    <tr>
+                                    <!-- <tr>
                                         <td>{{date("d-m-Y", strtotime($request->start))}}</td>
                                         <td>N/A</td>
                                         <td>Balance</td>
@@ -115,7 +120,7 @@
                                         <td></td>
                                         <td></td>
                                         <td>{{$balance}}</td>
-                                    </tr>
+                                    </tr> -->
                                     @php
                                         $c_due = $balance;
                                         $sum = 0;
@@ -135,8 +140,11 @@
                                               $salesamount = $salesamount + $item['debit'];
                                             }
                                             $sum = $sum + ($item['debit'] - $item['credit']);
+                                            
+                                            $item['balance'] = $balance + $sum;
+                                            $item['userName'] = $current_user->name
                                         @endphp
-                                        <tr>
+                                        <tr onclick='redirectToDetails({{$item["id"]}}, @json($item))' style="cursor: pointer;">
                                             <td>{{$item['date']}}</td>
                                             <td>{{$item['id']}}</td>
                                             <td>{{$item['particular']}}</td>
@@ -229,14 +237,61 @@
     <script src="{{asset('assets/js/flatpicker.min.js')}}"></script>
     <script src="{{asset('assets/js/datatables.min.js')}}"></script>
     <script src="{{asset('assets/js/dataTables.bootstrap4.min.js')}}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    
+  const chartData = @json($daily_chart_data);
+  const labels = chartData.map(item => item.date);
+  const balances = chartData.map(item => item.balance);
 
-
+  new Chart(document.getElementById('balanceChart'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Daily Balance',
+        backgroundColor: '#3490dc',
+        data: balances
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: {
+          beginAtZero: true
+        }
+      }
+    }
+  });
+</script>
     <script>
         $("#start").flatpickr({dateFormat: 'Y-m-d'});
         $("#end").flatpickr({dateFormat: 'Y-m-d'});
 
         $('#order_table').DataTable({});
         $('#cash_table').DataTable({});
+        
+        function redirectToDetails(id, item) {
+
+            // Base URL
+            let url = '{{ route("report.customer_details", ":id") }}'.replace(':id', id);
+
+            // Start query params with date
+            let params = new URLSearchParams();
+
+            // Append all item properties
+            for (let key in item) {
+                if (item.hasOwnProperty(key) && item[key] !== null && item[key] !== undefined) {
+                    params.append(key, item[key]);
+                }
+            }
+
+            // Final URL
+            url += `?${params.toString()}`;
+
+            window.location.href = url;
+        }
+
     </script>
 
 @endpush

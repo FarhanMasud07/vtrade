@@ -1,4 +1,3 @@
-
 @extends('layouts.adminlayout')
 @section('title','Growth Charts')
 @section('content')
@@ -6,7 +5,7 @@
     <div class="col-lg-12">
         <div class="card">
             <div class="card-header">
-                  <h5 class="card-title">Compnay Growth Charts</h5>
+                  <h5 class="card-title">Company Growth Charts</h5>
             </div>
             <div class="card-body">
 
@@ -27,10 +26,9 @@
                     <canvas id="expenses-chart"></canvas>
                   </div>
                   <div class="col-lg-6 col-md-6">
-                    <canvas id="orders-chart"></canvas>
+                    <canvas id="net-profit-chart"></canvas>
                   </div>
                 </div>
-
 
             </div>
         </div>
@@ -51,21 +49,21 @@ var sales_data = [];
 var return_products_data = [];
 var expense_data = [];
 var cashes_data = [];
+var net_profit_data = [];
 
-
-axios.post(baseurl+'/admin/growth_charts',{
+axios.post(baseurl+'/admin/growth_charts', {
     start: from,
     end: to,
-  })
-  .then(function (response) {
-      console.log(response);
+})
+.then(function (response) {
+    console.log(response);
     var data = {};
     var config = {};
 
     // For sales data
     sales_data = response.data.sales_data;
     const sales_chart_labels = sales_data.sales_month_label;
-         data = {
+    data = {
         labels: sales_chart_labels,
         datasets: [{
             label: 'Sales Chart',
@@ -73,21 +71,21 @@ axios.post(baseurl+'/admin/growth_charts',{
             borderColor: '#27ae60',
             data: sales_data.sales_amount,
         }]
-        };
-        config = {
+    };
+    config = {
         type: type,
         data,
         options: {}
-        };
-        new Chart(
-            document.getElementById('sales-chart'),
-            config
-        );
+    };
+    new Chart(
+        document.getElementById('sales-chart'),
+        config
+    );
 
-    //For Cashes
+    // For Cashes data
     cashes_data = response.data.cashes_data;
     const cashes_chart_labels = cashes_data.cashes_month_label;
-        data = {
+    data = {
         labels: cashes_chart_labels,
         datasets: [{
             label: 'Cashes Chart',
@@ -95,23 +93,21 @@ axios.post(baseurl+'/admin/growth_charts',{
             borderColor: '#d35400',
             data: cashes_data.cash_amount,
         }]
-        };
-
-       config = {
+    };
+    config = {
         type: type,
         data,
         options: {}
-        };
+    };
+    new Chart(
+        document.getElementById('cashes-chart'),
+        config
+    );
 
-        new Chart(
-            document.getElementById('cashes-chart'),
-            config
-        );
-
-      //Product Returns
+    // For Product Returns data
     return_products_data = response.data.return_products_data;
     const return_products_labels = return_products_data.return_products_month_label;
-        data = {
+    data = {
         labels: return_products_labels,
         datasets: [{
             label: 'Product Returns Chart',
@@ -119,51 +115,64 @@ axios.post(baseurl+'/admin/growth_charts',{
             borderColor: '#34495e',
             data: return_products_data.pd_return_amount,
         }]
-        };
-
-       config = {
+    };
+    config = {
         type: type,
         data,
         options: {}
-        };
+    };
+    new Chart(
+        document.getElementById('return-products-chart'),
+        config
+    );
 
-        new Chart(
-            document.getElementById('return-products-chart'),
-            config
-        );
-
-    //Expenses Data
+    // For Expenses data
     expense_data = response.data.expenses_data;
-    console.log(expense_data)
     const expense_month_label = expense_data.expense_month_label;
-        data = {
+    data = {
         labels: expense_month_label,
         datasets: [{
-            label: 'Expenses Data',
+            label: 'Expenses Chart',
             backgroundColor: '#e74c3c',
             borderColor: '#c0392b',
             data: expense_data.expense_amount,
         }]
-        };
-
-       config = {
+    };
+    config = {
         type: type,
         data,
         options: {}
-        };
+    };
+    new Chart(
+        document.getElementById('expenses-chart'),
+        config
+    );
 
-        new Chart(
-            document.getElementById('expenses-chart'),
-            config
-        );
-
-
-  })
-  .catch(function (error) {
+    // For Net Profit data
+    net_profit_data = response.data.net_profit_data;
+    const net_profit_month_label = net_profit_data.net_profit_month_label;
+    data = {
+        labels: net_profit_month_label,
+        datasets: [{
+            label: 'Net Profit Chart',
+            backgroundColor: '#8e44ad',
+            borderColor: '#8e44ad',
+            data: net_profit_data.net_profit_amount,
+        }]
+    };
+    config = {
+        type: type,
+        data,
+        options: {}
+    };
+    new Chart(
+        document.getElementById('net-profit-chart'),
+        config
+    );
+})
+.catch(function (error) {
     // handle error
     console.log(error);
-})
-
-
+});
 </script>
 @endpush

@@ -368,7 +368,6 @@ class StockController extends Controller
             return $map_data;
         });
     }
-
     public function generateProductChartData(Request $request)
     {
         $this->validate($request, [
@@ -377,105 +376,221 @@ class StockController extends Controller
             'product_id' => 'required|integer',
             'group_by' => 'required',
         ]);
-
-
-        $sales_chart = DB::table('product_sale')
-            ->where('product_id', '=', $request->product_id)
-            ->whereBetween('sales_at', [$request->start . " 00:00:00", $request->end . " 23:59:59"])
-            ->when($request->group_by == 'week', function ($q) {
-                $q->select(DB::raw('WEEK(sales_at) as week, MONTH(sales_at) as month, YEAR(sales_at) as year, SUM(qty) as qty'))
-                    ->groupBy(DB::raw('YEAR(sales_at), MONTH(sales_at), WEEK(sales_at)'))
-                    ->orderBy('week', 'desc');
-            })
-            ->when($request->group_by == 'day', function ($q) {
-                $q->select(DB::raw('WEEK(sales_at) as week,DAY(sales_at) as day, MONTH(sales_at) as month, YEAR(sales_at) as year, SUM(qty) as qty'))
-                    ->groupBy(DB::raw('YEAR(sales_at),DAY(sales_at), MONTH(sales_at), WEEK(sales_at)'))
-                    ->orderBy('day', 'desc');
-            })
-            ->when($request->group_by == 'month', function ($q) {
-                $q->select(DB::raw('MONTH(sales_at) as month, YEAR(sales_at) as year, SUM(qty) as qty'))
-                    ->groupBy(DB::raw('YEAR(sales_at), MONTH(sales_at)'))
-                    ->orderBy('month', 'desc');
-            })
-            ->addSelect(DB::raw("'sales_chart' as type"))
-            ->get();
-
-        if (count($sales_chart) > 0) {
-            if ($request->group_by == 'week') {
-                $sales_chart = $this->chartDataMapping($sales_chart, 'week');
-            } else if ($request->group_by == 'month') {
-                $sales_chart = $this->chartDataMapping($sales_chart, 'month');
-            } else if ($request->group_by == 'day') {
-                $sales_chart = $this->chartDataMapping($sales_chart, 'day');
-            }
+    
+        $startDate = Carbon::parse($request->start);
+        $endDate = Carbon::parse($request->end);
+        $dateRange = [];
+    
+        while ($startDate->lte($endDate)) {
+            $dateRange[] = $startDate->format('Y-m-d');
+            $startDate->addDay();
         }
-
-        $return_chart = DB::table('product_returnproduct')
-            ->where('product_id', '=', $request->product_id)
-            ->whereBetween('returned_at', [$request->start . " 00:00:00", $request->end . " 23:59:59"])
-            ->when($request->group_by == 'week', function ($q) {
-                $q->select(DB::raw('WEEK(returned_at) as week, MONTH(returned_at) as month, YEAR(returned_at) as year, SUM(qty) as qty'))
-                    ->groupBy(DB::raw('YEAR(returned_at), MONTH(returned_at), WEEK(returned_at)'))
-                    ->orderBy('week', 'desc');
+    
+        // Fetch raw sales data
+        $salesRaw = DB::table('product_sale')
+            ->where('product_id', $request->product_id)
+            ->whereBetween(DB::raw('DATE(sales_at)'), [$request->start, $request->end])
+            ->select(DB::raw('DATE(sales_at) as date'), DB::raw('SUM(qty) as qty'))
+            ->groupBy(DB::raw('DATE(sales_at)'))
+            ->get()
+            ->keyBy('date');
+    
+        // Fetch raw return data
+        $returnsRaw = DB::table('product_returnproduct')
+            ->where('product_id', $request->product_id)
+            ->whereBetween(DB::raw('DATE(returned_at)'), [$request->start, $request->end])
+            ->select(DB::raw('DATE(returned_at) as date'), DB::raw('SUM(qty) as qty'))
+            ->groupBy(DB::raw('DATE(returned_at)'))
+            ->get()
+            ->keyBy('date');
+    
+        // Net profit (price × qty - expense - unit cost × qty)
+        $profitRaw = DB::table('product_sale')
+            ->join('products', 'product_sale.product_id', '=', 'products.id')
+            ->leftJoin('expenses', function ($join) {
+                $join->on(DB::raw('DATE(expenses.expense_date)'), '=', DB::raw('DATE(product_sale.sales_at)'));
             })
-            ->when($request->group_by == 'day', function ($q) {
-                $q->select(DB::raw('WEEK(returned_at) as week,DAY(returned_at) as day, MONTH(returned_at) as month, YEAR(returned_at) as year, SUM(qty) as qty'))
-                    ->groupBy(DB::raw('YEAR(returned_at),DAY(returned_at), MONTH(returned_at), WEEK(returned_at)'))
-                    ->orderBy('day', 'desc');
-            })
-            ->when($request->group_by == 'month', function ($q) {
-                $q->select(DB::raw('MONTH(returned_at) as month, YEAR(returned_at) as year, SUM(qty) as qty'))
-                    ->groupBy(DB::raw('YEAR(returned_at), MONTH(returned_at)'))
-                    ->orderBy('month', 'desc');
-            })
-            ->addSelect(DB::raw("'return_chart' as type"))
-            ->get();
-
-        if (count($return_chart) > 0) {
-            if ($request->group_by == 'week') {
-                $return_chart = $this->chartDataMapping($return_chart, 'week');
-            } else if ($request->group_by == 'month') {
-                $return_chart = $this->chartDataMapping($return_chart, 'month');
-            } else if ($request->group_by == 'day') {
-                $return_chart = $this->chartDataMapping($return_chart, 'day');
-            }
+            ->where('product_sale.product_id', $request->product_id)
+            ->whereBetween(DB::raw('DATE(product_sale.sales_at)'), [$request->start, $request->end])
+            ->groupBy(DB::raw('DATE(product_sale.sales_at)'))
+            ->select(
+                DB::raw('DATE(product_sale.sales_at) as sales_date'),
+                DB::raw('SUM((product_sale.price * product_sale.qty) - COALESCE(expenses.amount, 0) - (products.price * product_sale.qty)) as net_profit')
+            )
+            ->get()
+            ->keyBy('sales_date');
+    
+        // Prepare final arrays for frontend
+        $sale_chart = [];
+        $return_chart = [];
+        $net_profit_chart = [];
+    
+        foreach ($dateRange as $date) {
+            $sale_chart[] = [
+                'date_range_string' => $date,
+                'qty' => $salesRaw[$date]->qty ?? 0
+            ];
+    
+            $return_chart[] = [
+                'date_range_string' => $date,
+                'qty' => $returnsRaw[$date]->qty ?? 0
+            ];
+    
+            $net_profit_chart[] = [
+                'date_range_string' => $date,
+                'net_profit' => $profitRaw[$date]->net_profit ?? 0
+            ];
         }
-
-        return ['sale_chart' => $sales_chart, 'return_chart' => $return_chart];
+    
+        return [
+            'sale_chart' => $sale_chart,
+            'return_chart' => $return_chart,
+            'net_profit_chart' => $net_profit_chart
+        ];
     }
+    
+
+    // public function showDateWiseProduct(Request $request)
+    // {
+    //     $this->validate($request, [
+    //         'start' => 'required|date',
+    //         'end' => 'required|date',
+    //         'product_id' => 'required|integer',
+    //         'group_by' => 'required',
+    //     ]);
+    //     $products = Product::all();
+    //     $sales_history = DB::table('product_sale')->join('products', 'product_sale.product_id', '=', 'products.id')
+    //         ->where('product_id', '=', $request->product_id)->whereBetween('sales_at', [$request->start . " 00:00:00", $request->end . " 23:59:59"])
+    //         ->join('users', 'product_sale.user_id', '=', 'users.id')
+    //         ->select('product_sale.id', 'product_sale.sales_at as date', 'product_sale.qty', 'product_sale.price', 'products.product_name', 'users.name as customer_name')
+    //         ->addSelect(DB::raw("'Sales' as type"))
+    //         ->get();
+
+
+    //     $return_history = DB::table('product_returnproduct')
+    //         ->where('product_id', '=', $request->product_id)
+    //         ->join('products', 'product_returnproduct.product_id', '=', 'products.id')
+    //         ->join('users', 'product_returnproduct.user_id', '=', 'users.id')
+    //         ->whereBetween('product_returnproduct.returned_at', [$request->start . " 00:00:00", $request->end . " 23:59:59"])
+    //         ->select('product_returnproduct.id','product_returnproduct.returned_at as date', 'product_returnproduct.qty', 'product_returnproduct.price', 'products.product_name', 'users.name as customer_name')
+    //         ->addSelect(DB::raw("'Returns' as type"))
+    //         ->get();
+
+    //     $merge_data = $sales_history
+    //         ->merge($return_history);
+    //     $sorted_product_data = $merge_data->sortDesc()->values()->all();
+    //     return view('general_report.show_product_report', compact('sorted_product_data', 'request', 'products'));
+
+    // }
+
 
     public function showDateWiseProduct(Request $request)
     {
+        // Validation
         $this->validate($request, [
             'start' => 'required|date',
             'end' => 'required|date',
             'product_id' => 'required|integer',
             'group_by' => 'required',
         ]);
+    
+        // All products for dropdown
         $products = Product::all();
-        $sales_history = DB::table('product_sale')->join('products', 'product_sale.product_id', '=', 'products.id')
-            ->where('product_id', '=', $request->product_id)->whereBetween('sales_at', [$request->start . " 00:00:00", $request->end . " 23:59:59"])
+    
+        // Sales data
+        $sales_history = DB::table('product_sale')
+            ->join('products', 'product_sale.product_id', '=', 'products.id')
+            ->where('product_id', '=', $request->product_id)
+            ->whereBetween('sales_at', [$request->start . " 00:00:00", $request->end . " 23:59:59"])
             ->join('users', 'product_sale.user_id', '=', 'users.id')
-            ->select('product_sale.id', 'product_sale.sales_at as date', 'product_sale.qty', 'product_sale.price', 'products.product_name', 'users.name as customer_name')
+            ->select(
+                'product_sale.id',
+                'product_sale.sales_at as date',
+                'product_sale.qty',
+                'product_sale.price',
+                'products.product_name',
+                'users.name as customer_name'
+            )
             ->addSelect(DB::raw("'Sales' as type"))
             ->get();
-
-
+    
+        // Return data
         $return_history = DB::table('product_returnproduct')
             ->where('product_id', '=', $request->product_id)
             ->join('products', 'product_returnproduct.product_id', '=', 'products.id')
             ->join('users', 'product_returnproduct.user_id', '=', 'users.id')
             ->whereBetween('product_returnproduct.returned_at', [$request->start . " 00:00:00", $request->end . " 23:59:59"])
-            ->select('product_returnproduct.id','product_returnproduct.returned_at as date', 'product_returnproduct.qty', 'product_returnproduct.price', 'products.product_name', 'users.name as customer_name')
+            ->select(
+                'product_returnproduct.id',
+                'product_returnproduct.returned_at as date',
+                'product_returnproduct.qty',
+                'product_returnproduct.price',
+                'products.product_name',
+                'users.name as customer_name'
+            )
             ->addSelect(DB::raw("'Returns' as type"))
             ->get();
-
-        $merge_data = $sales_history
-            ->merge($return_history);
+    
+        // Merge and sort
+        $merge_data = $sales_history->merge($return_history);
         $sorted_product_data = $merge_data->sortDesc()->values()->all();
-        return view('general_report.show_product_report', compact('sorted_product_data', 'request', 'products'));
-
+    
+        // 🟢 Net Profit per Day (from productDetails logic)
+        $netProfitData = DB::table('product_sale')
+            ->join('products', 'product_sale.product_id', '=', 'products.id')
+            ->leftJoin('expenses', function ($join) {
+                $join->on(DB::raw('DATE(expenses.expense_date)'), '=', DB::raw('DATE(product_sale.sales_at)'));
+            })
+            ->where('product_sale.product_id', $request->product_id)
+            ->whereBetween(DB::raw('DATE(product_sale.sales_at)'), [$request->start, $request->end])
+            ->groupBy(DB::raw('DATE(product_sale.sales_at)'))
+            ->select(
+                DB::raw('DATE(product_sale.sales_at) as sales_date'),
+                DB::raw('SUM((product_sale.price * product_sale.qty) - COALESCE(expenses.amount, 0) - (products.price * product_sale.qty)) as net_profit')
+            )
+            ->orderBy(DB::raw('DATE(product_sale.sales_at)'))
+            ->get();
+    
+        // 🟢 Prepare data for the chart (Sales, Returns, and Net Profit)
+        $salesChartData = [];
+        $returnChartData = [];
+        $netProfitChartData = [];
+    
+        // Create an array with dates as keys to make sure each date is represented
+        $currentDate = \Carbon\Carbon::parse($request->start);
+        $endDate = \Carbon\Carbon::parse($request->end);
+    
+        while ($currentDate <= $endDate) {
+            $dateString = $currentDate->format('Y-m-d');
+            
+            // Get sales and return quantities for this date
+            $salesQty = $sales_history->where('date', $dateString)->sum('qty');
+            $returnQty = $return_history->where('date', $dateString)->sum('qty');
+            
+            // Get net profit for this date
+            $netProfit = $netProfitData->where('sales_date', $dateString)->first()->net_profit ?? 0;
+    
+            // Add data to the arrays
+            $salesChartData[] = ['date' => $dateString, 'qty' => $salesQty];
+            $returnChartData[] = ['date' => $dateString, 'qty' => $returnQty];
+            $netProfitChartData[] = ['date' => $dateString, 'net_profit' => $netProfit];
+    
+            $currentDate->addDay();
+        }
+    
+        // Return to view with all necessary data
+        return view('general_report.show_product_report', compact(
+            'sorted_product_data',
+            'request',
+            'products',
+            'netProfitData',
+            'salesChartData',
+            'returnChartData',
+            'netProfitChartData'
+        ));
     }
+    
+
 
     public function productDetails($id, Request $request )
     {

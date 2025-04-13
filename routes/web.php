@@ -110,7 +110,6 @@ Route::group(['prefix'=> 'admin','middleware' => ['auth:admin']], function(){
     Route::get('report/pos/duereport/', 'ReportController@InvDueReport')->name('report.duereport');
     Route::post('report/pos/duereport/result', 'ReportController@InvDueReportResult')->name('report.duereportresult');
     Route::post('report/pos/duereport/pdf', 'ReportController@pdfInvDueReportResult')->name('report.pdfduereportresult');
-    Route::get('report/pos/duereport/result/{id}', 'ReportController@customerDetails')->name('report.customer_details');
 
 
     Route::get('report/stockreport', 'StockController@stockreport')->name('stockreport.report');
@@ -126,6 +125,7 @@ Route::group(['prefix'=> 'admin','middleware' => ['auth:admin']], function(){
     Route::get('report/pos/posuserstatement', 'ReportController@posUserStatement')->name('report.posuserstatement');
     Route::post('report/pos/posuserstatement', 'ReportController@showPosUserstatement')->name('report.showposuserstatement');
     Route::post('report/pos/posuserstatement/pdf', 'ReportController@pdfPosUserstatement')->name('report.pdfposuserstatement');
+    Route::get('report/pos/posuserstatement/{id}', 'ReportController@customerDetails')->name('report.customer_details');
     //Inventory Customer Detail Report
     Route::get('report/pos/posdeatailstatement', 'ReportController@posDeatilStatement')->name('report.posdetailstatement');
     Route::post('report/pos/posdeatailstatement', 'ReportController@showPosDeatilStatement')->name('report.showposdetailstatement');
