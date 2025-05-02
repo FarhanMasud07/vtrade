@@ -201,8 +201,32 @@ class adminController extends Controller
         $current_month_sale = Sale::whereBetween('sales_at', [Carbon::now()->startOfMonth(), Carbon::now()])->sum('amount');
         $current_month_cash = Cash::whereBetween('received_at', [Carbon::now()->startOfMonth(), Carbon::now()])->sum('amount');
         $current_month_return = Returnproduct::whereBetween('returned_at', [Carbon::now()->startOfMonth(), Carbon::now()])->sum('amount');
-        $current_month_expense = Expense::whereBetween('expense_date', [Carbon::now()->startOfMonth(), Carbon::now()])->sum('amount');
-        return view('admin.inventorydashboard', compact('todays_pos_sales', 'todays_pos_cash', 'todays_pos_returns', 'pending_sales', 'general_opt_value', 'pending_cash', 'pending_returns', 'pending_delivery', 'last_ten_dlv', 'current_month_sale', 'current_month_cash', 'current_month_return', 'current_month_expense', 'todays_expense'));
+        $current_month_expense = Expense::whereBetween('expense_date', [Carbon::now()->startOfMonth(), Carbon::now()])->sum('amount');  
+
+        $startOfMonth = Carbon::now()->startOfMonth();
+        $endOfMonth = Carbon::now()->endOfMonth();
+        
+        $latestProductPurchases = DB::table('product_purchase as pp1')
+            ->join(DB::raw("
+                (SELECT product_id, MAX(purchased_at) as max_purchased_at
+                 FROM product_purchase
+                 WHERE purchased_at BETWEEN '{$startOfMonth}' AND '{$endOfMonth}'
+                 GROUP BY product_id) as pp2
+            "), function($join) {
+                $join->on('pp1.product_id', '=', 'pp2.product_id')
+                     ->on('pp1.purchased_at', '=', 'pp2.max_purchased_at');
+            })
+            ->join('purchases as p', 'pp1.purchase_id', '=', 'p.id') // corrected join
+            ->select('p.id as purchase_id', 'p.amount', 'p.supplier_id', 'pp1.product_id')
+            ->get();
+        
+        $uniquePurchaseIds = $latestProductPurchases->pluck('purchase_id')->unique();
+        
+        $totalLatestPurchasedPrice = DB::table('purchases')
+            ->whereIn('id', $uniquePurchaseIds)
+            ->sum('amount');
+        
+        return view('admin.inventorydashboard', compact('todays_pos_sales', 'todays_pos_cash', 'todays_pos_returns', 'pending_sales', 'general_opt_value', 'pending_cash', 'pending_returns', 'pending_delivery', 'last_ten_dlv', 'current_month_sale', 'current_month_cash', 'current_month_return', 'current_month_expense','totalLatestPurchasedPrice', 'todays_expense'));
     }
 
     public function inv_pendingcash($id)

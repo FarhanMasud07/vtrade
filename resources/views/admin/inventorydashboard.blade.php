@@ -133,9 +133,25 @@
                         <!-- small box -->
                         <div class="small-box" style="background: #81BFDA">
                             <div class="inner">
-                                <h3>{{round($current_month_cash - $current_month_expense)}}</h3>
+                                <h3>{{round($current_month_cash - $current_month_expense - $totalLatestPurchasedPrice)}}</h3>
 
-                                <p><b>{{$monthname}} Net Cash upto <span
+                                <p><b>{{$monthname}} Net Profit upto <span
+                                            class="badge badge-primary">{{$upto}}</span></b></p>
+                            </div>
+                            <div class="icon">
+                                <i class="fas fa-hand-holding-usd"></i>
+                            </div>
+
+                        </div>
+                    </div>
+                    
+                    <div class="col-6 col-md-6 col-lg-6">
+                        <!-- small box -->
+                        <div class="small-box" style="background: #81BFDA">
+                            <div class="inner">
+                                <h3>{{$totalLatestPurchasedPrice}}</h3>
+
+                                <p><b>{{$monthname}} Purchased Products upto <span
                                             class="badge badge-primary">{{$upto}}</span></b></p>
                             </div>
                             <div class="icon">
@@ -866,7 +882,7 @@
                 'Cashes',
                 'Returns',
                 'Expenses',
-                'Net cash'
+                'Net profit'
             ],
             datasets: [{
                 label: 'My First Dataset',
@@ -875,7 +891,7 @@
                     {{round($current_month_cash)}},
                     {{round($current_month_return)}},
                     {{round($current_month_expense)}},
-                    {{round($current_month_cash - $current_month_expense )}},
+                    {{round($current_month_cash - $current_month_expense - $totalLatestPurchasedPrice)}},
                 ],
                 backgroundColor: [
                     '#FFC312',
