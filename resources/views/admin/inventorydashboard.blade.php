@@ -147,15 +147,11 @@
                     
                     <div class="col-6 col-md-6 col-lg-6">
                         <!-- small box -->
-                        <div class="small-box" style="background: #81BFDA">
+                        <div class="small-box" style="background:rgb(255, 49, 70)">
                             <div class="inner">
                                 <h3>{{$totalLatestPurchasedPrice}}</h3>
 
-                                <p><b>{{$monthname}} Purchased Products upto <span
-                                            class="badge badge-primary">{{$upto}}</span></b></p>
-                            </div>
-                            <div class="icon">
-                                <i class="fas fa-hand-holding-usd"></i>
+                                <p><b>{{$monthname}} Purchased Products upto <span class="badge badge-primary">{{$upto}}</span></b></p>
                             </div>
 
                         </div>

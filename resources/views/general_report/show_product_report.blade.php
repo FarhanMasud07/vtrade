@@ -154,7 +154,7 @@
                                             }
                                         @endphp
                                         <!-- onclick="redirectToDetails({{$item->id}}, '{{$item->date}}')"  style="cursor: pointer;" -->
-                                        <tr onclick="redirectToDetails({{$item->id}}, '{{$item->date}}')"  style="cursor: pointer;">
+                                        <tr>
                                             <td>{{$key+1}}</td>
                                             <td>{{date('d-M-Y', strtotime($item->date))}}</td>
                                             <td>{{$item->customer_name}}</td>
@@ -318,81 +318,84 @@
         product_id,
     })
     .then(function (response) {
-        console.log(response);
+    console.log(response);
 
-        // ========== 1. Sales Chart ==========
-        new Chart(document.getElementById('sales-chart'), {
-            type: 'bar',
-            data: {
-                datasets: [{
-                    label: 'Sales Chart',
-                    backgroundColor: '#2ecc71',
-                    borderColor: '#27ae60',
-                    data: response.data.sale_chart
-                }]
+    const saleData = response.data.sale_chart.filter(item => item.qty > 0);
+    const returnData = response.data.return_chart.filter(item => item.qty > 0);
+    const profitData = response.data.net_profit_chart.filter(item => item.net_profit != 0);
+
+    // ========== 1. Sales Chart ==========
+    new Chart(document.getElementById('sales-chart'), {
+        type: 'bar',
+        data: {
+            datasets: [{
+                label: 'Sales Chart',
+                backgroundColor: '#2ecc71',
+                borderColor: '#27ae60',
+                data: saleData
+            }]
+        },
+        options: {
+            parsing: {
+                xAxisKey: 'date_range_string',
+                yAxisKey: 'qty'
             },
-            options: {
-                parsing: {
-                    xAxisKey: 'date_range_string',
-                    yAxisKey: 'qty'
-                },
-                responsive: true,
-                plugins: {
-                    legend: { position: 'top' },
-                    tooltip: { enabled: true }
-                }
+            responsive: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: { enabled: true }
             }
-        });
+        }
+    });
 
-        // ========== 2. Return Chart ==========
-        new Chart(document.getElementById('return-chart'), {
-            type: 'bar',
-            data: {
-                datasets: [{
-                    label: 'Sales Return Chart',
-                    backgroundColor: '#e74c3c',
-                    borderColor: '#c0392b',
-                    data: response.data.return_chart
-                }]
+    // ========== 2. Return Chart ==========
+    new Chart(document.getElementById('return-chart'), {
+        type: 'bar',
+        data: {
+            datasets: [{
+                label: 'Sales Return Chart',
+                backgroundColor: '#e74c3c',
+                borderColor: '#c0392b',
+                data: returnData
+            }]
+        },
+        options: {
+            parsing: {
+                xAxisKey: 'date_range_string',
+                yAxisKey: 'qty'
             },
-            options: {
-                parsing: {
-                    xAxisKey: 'date_range_string',
-                    yAxisKey: 'qty'
-                },
-                responsive: true,
-                plugins: {
-                    legend: { position: 'top' },
-                    tooltip: { enabled: true }
-                }
+            responsive: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: { enabled: true }
             }
-        });
+        }
+    });
 
-        // ========== 3. Net Profit Chart ==========
-        new Chart(document.getElementById('net-profit-chart'), {
-            type: 'bar',
-            data: {
-                datasets: [{
-                    label: 'Net Profit Chart',
-                    backgroundColor: '#3498db',
-                    borderColor: '#2980b9',
-                    data: response.data.net_profit_chart
-                }]
+    // ========== 3. Net Profit Chart ==========
+    new Chart(document.getElementById('net-profit-chart'), {
+        type: 'bar',
+        data: {
+            datasets: [{
+                label: 'Net Profit Chart',
+                backgroundColor: '#3498db',
+                borderColor: '#2980b9',
+                data: profitData
+            }]
+        },
+        options: {
+            parsing: {
+                xAxisKey: 'date_range_string',
+                yAxisKey: 'net_profit'
             },
-            options: {
-                parsing: {
-                    xAxisKey: 'date_range_string',
-                    yAxisKey: 'net_profit'
-                },
-                responsive: true,
-                plugins: {
-                    legend: { position: 'top' },
-                    tooltip: { enabled: true }
-                }
+            responsive: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: { enabled: true }
             }
-        });
-
-    })
+        }
+    });
+})
     .catch(function (error) {
         console.error(error);
     });

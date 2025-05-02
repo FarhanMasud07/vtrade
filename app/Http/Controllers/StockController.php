@@ -404,44 +404,77 @@ class StockController extends Controller
             ->get()
             ->keyBy('date');
     
-        // Net profit (price × qty - expense - unit cost × qty)
+        $purchaseCost = DB::table('product_purchase')
+            ->where('product_id', $request->product_id)
+            ->whereBetween(DB::raw('DATE(purchased_at)'), [$request->start, $request->end])
+            ->select(DB::raw('SUM(qty * price) as total_cost'))
+            ->value('total_cost');
+
+        // Step 3: Get total quantity of all products sold (for per-unit allocation)
+        $totalQtyAllProducts = DB::table('product_sale')
+            ->whereBetween(DB::raw('DATE(sales_at)'), [$request->start, $request->end])
+            ->sum('qty');
+
+        // Step 4: Get fixed and variable expenses
+        $fixedCost = DB::table('expenses')
+            ->where('expensecategory_id', 11)
+            ->whereBetween(DB::raw('DATE(expense_date)'), [$request->start, $request->end])
+            ->sum('amount');
+
+        $variableCost = DB::table('expenses')
+            ->where('expensecategory_id', '!=', 11)
+            ->whereBetween(DB::raw('DATE(expense_date)'), [$request->start, $request->end])
+            ->sum('amount');
+
+        $fixedCostPerUnit = $totalQtyAllProducts > 0 ? $fixedCost / $totalQtyAllProducts : 0;
+        $variableCostPerUnit = $totalQtyAllProducts > 0 ? $variableCost / $totalQtyAllProducts : 0;
+
+        // Step 5: Get sale data per day for the selected product
         $profitRaw = DB::table('product_sale')
-            ->join('products', 'product_sale.product_id', '=', 'products.id')
-            ->leftJoin('expenses', function ($join) {
-                $join->on(DB::raw('DATE(expenses.expense_date)'), '=', DB::raw('DATE(product_sale.sales_at)'));
-            })
-            ->where('product_sale.product_id', $request->product_id)
-            ->whereBetween(DB::raw('DATE(product_sale.sales_at)'), [$request->start, $request->end])
-            ->groupBy(DB::raw('DATE(product_sale.sales_at)'))
+            ->where('product_id', $request->product_id)
+            ->whereBetween(DB::raw('DATE(sales_at)'), [$request->start, $request->end])
             ->select(
-                DB::raw('DATE(product_sale.sales_at) as sales_date'),
-                DB::raw('SUM((product_sale.price * product_sale.qty) - COALESCE(expenses.amount, 0) - (products.price * product_sale.qty)) as net_profit')
+                DB::raw('DATE(sales_at) as sales_date'),
+                DB::raw('SUM(price * qty) as total_sale'),
+                DB::raw('SUM(qty) as total_qty')
             )
+            ->groupBy(DB::raw('DATE(sales_at)'))
             ->get()
-            ->keyBy('sales_date');
-    
-        // Prepare final arrays for frontend
+            ->mapWithKeys(function ($item) use ($purchaseCost, $fixedCostPerUnit, $variableCostPerUnit) {
+                $productFixedCost = $fixedCostPerUnit * $item->total_qty;
+                $productVariableCost = $variableCostPerUnit * $item->total_qty;
+                $netProfit = $item->total_sale - $purchaseCost - $productFixedCost - $productVariableCost;
+
+                return [
+                    $item->sales_date => (object)[
+                        'sales_date' => $item->sales_date,
+                        'net_profit' => $netProfit
+                    ]
+                ];
+            });
+
+        // Final output
         $sale_chart = [];
         $return_chart = [];
         $net_profit_chart = [];
-    
+
         foreach ($dateRange as $date) {
             $sale_chart[] = [
                 'date_range_string' => $date,
                 'qty' => $salesRaw[$date]->qty ?? 0
             ];
-    
+
             $return_chart[] = [
                 'date_range_string' => $date,
                 'qty' => $returnsRaw[$date]->qty ?? 0
             ];
-    
+
             $net_profit_chart[] = [
                 'date_range_string' => $date,
                 'net_profit' => $profitRaw[$date]->net_profit ?? 0
             ];
         }
-    
+
         return [
             'sale_chart' => $sale_chart,
             'return_chart' => $return_chart,

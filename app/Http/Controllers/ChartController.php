@@ -91,18 +91,27 @@ class ChartController extends Controller
       }
       $expenses_data = ['expense_month_label' => $expense_month_label, 'expense_amount' => $expense_amount];
   
+      
       // Net Profit calculation
       $net_profit_month_label = [];
       $net_profit_amount = [];
       $months = array_unique(array_merge($sales_month_label, $cashes_month_label, $return_products_month_label, $expense_month_label));
   
+      $monthStart = Carbon::parse($request->start)->startOfMonth()->format('Y-m-d');
+      $monthEnd = Carbon::parse($request->start)->endOfMonth()->format('Y-m-d');
+      
+      $purchaseCost = DB::table('purchases')
+          ->whereBetween(DB::raw('DATE(purchased_at)'), [$monthStart, $monthEnd])
+          ->sum('amount');
+      
       foreach ($months as $month) {
           $sales_value = in_array($month, $sales_month_label) ? $sales_amount[array_search($month, $sales_month_label)] : 0;
           $cash_value = in_array($month, $cashes_month_label) ? $cash_amount[array_search($month, $cashes_month_label)] : 0;
           $return_value = in_array($month, $return_products_month_label) ? $pd_return_amount[array_search($month, $return_products_month_label)] : 0;
           $expense_value = in_array($month, $expense_month_label) ? $expense_amount[array_search($month, $expense_month_label)] : 0;
-  
-          $net_profit = ($sales_value + $cash_value) - ($return_value + $expense_value);
+
+
+          $net_profit = ($sales_value + $cash_value) - ($return_value + $expense_value) - $purchaseCost;
           
           array_push($net_profit_month_label, $month);
           array_push($net_profit_amount, $net_profit);

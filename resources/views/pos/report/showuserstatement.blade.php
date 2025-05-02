@@ -242,54 +242,58 @@
     <script src="{{asset('assets/js/dataTables.bootstrap4.min.js')}}"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-  const chartData = @json($daily_chart_data);
+  // Step 1: Filter out items with no balance (null or 0)
+  const chartData = @json($daily_chart_data).filter(item => item.balance !== null && item.balance !== 0);
+
+  // Step 2: Extract labels and balances only for valid items
   const labels = chartData.map(item => item.date);
   const balances = chartData.map(item => item.balance);
 
-  // Assign color per bar based on balance
-  const backgroundColors = balances.map(balance => balance < 0 ? '#e3342f' : '#3490dc'); // red for negative, blue for positive
+  // Step 3: Assign color per bar based on balance (red for negative, blue for positive)
+  const backgroundColors = balances.map(balance => balance < 0 ? '#e3342f' : '#3490dc');
 
+  // Step 4: Render chart
   new Chart(document.getElementById('balanceChart'), {
-  type: 'bar',
-  data: {
-    labels: labels,
-    datasets: [{
-      label: 'Daily Balance',
-      data: balances,
-      backgroundColor: balances.map(b => b < 0 ? '#e3342f' : '#3490dc'),
-      borderColor: '#3490dc' // Legend will take this color
-    }]
-  },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: {
-        labels: {
-          color: '#000', // Text color
-          generateLabels: function(chart) {
-            // Always show blue in the legend regardless of bar colors
-            const dataset = chart.data.datasets[0];
-            return [{
-              text: dataset.label,
-              fillStyle: '#38c172',
-              strokeStyle: '#3490dc',
-              lineWidth: 1,
-              hidden: false,
-              index: 0
-            }];
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Daily Balance',
+        data: balances,
+        backgroundColor: backgroundColors,
+        borderColor: '#3490dc'
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          labels: {
+            color: '#000',
+            generateLabels: function(chart) {
+              return [{
+                text: chart.data.datasets[0].label,
+                fillStyle: '#38c172',
+                strokeStyle: '#3490dc',
+                lineWidth: 1,
+                hidden: false,
+                index: 0
+              }];
+            }
           }
         }
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: true
+      },
+      scales: {
+        y: {
+          beginAtZero: true
+        }
       }
     }
-  }
-});
-
+  });
 </script>
+
+
+
 
     <script>
         $("#start").flatpickr({dateFormat: 'Y-m-d'});
